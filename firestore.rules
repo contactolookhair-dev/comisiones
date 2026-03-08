@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isValidSale(data) {
+      return data.totalAmount is number && 
+             (data.costAmount == null || data.costAmount is number) &&
+             (data.quantity == null || data.quantity is number) &&
+             data.date is string && 
+             data.userId == request.auth.uid;
+    }
+
+    function isValidExpense(data) {
+      return data.amount is number && 
+             data.category in ['arriendo', 'servicios básicos', 'marketing', 'software', 'insumos', 'operación'] &&
+             data.type in ['fijo', 'variable'] &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidAnalysis(data) {
+      return data.date is string && 
+             data.userId == request.auth.uid;
+    }
+
+    function isValidSettings(data) {
+      return data.userId == request.auth.uid &&
+             data.commissionRules is map &&
+             data.servicePrices is map;
+    }
+
+    match /sales/{saleId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidSale(request.resource.data);
+      allow update: if isAuthenticated() && isDocOwner() && isValidSale(request.resource.data);
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidExpense(request.resource.data);
+      allow update: if isAuthenticated() && isDocOwner() && isValidExpense(request.resource.data);
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /analyses/{analysisId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidAnalysis(request.resource.data);
+      allow update: if isAuthenticated() && isDocOwner() && isValidAnalysis(request.resource.data);
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidSettings(request.resource.data);
+      allow update: if isAuthenticated() && isDocOwner() && isValidSettings(request.resource.data);
+      allow delete: if isAuthenticated() && isDocOwner();
+    }
+  }
+}
